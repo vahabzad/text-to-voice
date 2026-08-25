@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Selected Text Reader",
+  "version": "1.0.0",
+  "description": "Read selected text aloud on any page, with Persian and English voice support.",
+  "permissions": ["contextMenus", "activeTab", "storage", "scripting", "tts"],
+  "host_permissions": ["<all_urls>", "http://127.0.0.1:8765/*", "http://localhost:8765/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Read selected text",
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "read-selection": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Read selected text"
+    },
+    "stop-reading": {
+      "suggested_key": {
+        "default": "Alt+Shift+X"
+      },
+      "description": "Stop reading"
+    }
+  }
+}
