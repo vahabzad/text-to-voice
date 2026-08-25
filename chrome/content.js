@@ -14,13 +14,13 @@ let localAudio = null;
 
 extensionApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "READ_TEXT") {
-    readText(message.text, message.settings);
-    sendResponse({ ok: true });
+    readText(message.text, message.settings).then(sendResponse);
+    return true;
   }
 
   if (message.type === "READ_SELECTION") {
-    readText(getSelectedText(), message.settings);
-    sendResponse({ ok: true });
+    readText(getSelectedText(), message.settings).then(sendResponse);
+    return true;
   }
 
   if (message.type === "STOP_READING") {
@@ -46,17 +46,21 @@ extensionApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function readText(rawText, messageSettings = {}) {
   const text = normalizeText(rawText || getSelectedText());
-  if (!text) return;
+  if (!text) return { ok: false, error: "NO_TEXT" };
 
   const settings = { ...(await loadSettings()), ...messageSettings };
   const localResult = await tryLocalTts(text, settings);
   if (localResult?.ok) {
-    return;
+    return localResult;
+  }
+
+  if (settings.useLocalHelper) {
+    return localResult || { ok: false, error: "LOCAL_TTS_UNAVAILABLE" };
   }
 
   const ttsResult = await tryBackgroundTts(text);
   if (ttsResult?.ok) {
-    return;
+    return ttsResult;
   }
 
   const lang = detectLanguage(text);
@@ -71,6 +75,7 @@ async function readText(rawText, messageSettings = {}) {
 
   speechSynthesis.cancel();
   speechSynthesis.speak(utterance);
+  return { ok: true, engine: "browser", lang, voice: voice?.name || "" };
 }
 
 async function tryBackgroundTts(text) {
@@ -98,26 +103,28 @@ async function tryLocalTts(text, settings) {
   if (!settings.useLocalHelper) return null;
 
   try {
-    const response = await fetch(`${settings.helperUrl.replace(/\/$/, "")}/speak`, {
+    const model = settings.localFaModel || DEFAULT_SETTINGS.localFaModel;
+    const response = await fetch(`${settings.helperUrl.replace(/\/$/, "")}/speak?model=${encodeURIComponent(model)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text,
-        model: settings.localFaModel || DEFAULT_SETTINGS.localFaModel,
+        model,
         rate: Number(settings.rate) || DEFAULT_SETTINGS.rate
       })
     });
 
-    if (!response.ok) return { ok: false, error: "LOCAL_TTS_ERROR" };
+    if (!response.ok) return { ok: false, error: "LOCAL_TTS_ERROR", model };
 
     const audioBlob = await response.blob();
+    const usedModel = response.headers.get("X-TTS-Model") || model;
     stopLocalAudio();
     localAudio = new Audio(URL.createObjectURL(audioBlob));
     localAudio.volume = Number(settings.volume) || DEFAULT_SETTINGS.volume;
     await localAudio.play();
-    return { ok: true, engine: "local-helper" };
+    return { ok: true, engine: "local-helper", model: usedModel };
   } catch {
-    return null;
+    return { ok: false, error: "LOCAL_TTS_UNAVAILABLE" };
   }
 }
 

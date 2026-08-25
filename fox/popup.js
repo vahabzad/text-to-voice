@@ -72,7 +72,7 @@ async function sendToActiveTab(message) {
 
   try {
     const result = await extensionApi.tabs.sendMessage(tab.id, message);
-    setStatus(result?.ok === false ? readableError(result) : "انجام شد");
+    setStatus(result?.ok === false ? readableError(result) : doneMessage(result));
   } catch {
     setStatus("صفحه را یک بار refresh کنید و دوباره امتحان کنید.");
   }
@@ -80,9 +80,16 @@ async function sendToActiveTab(message) {
 
 function readableError(result) {
   if (result?.error === "NO_TEXT") return "اول یک متن را انتخاب کنید.";
+  if (result?.error === "LOCAL_TTS_UNAVAILABLE") return "موتور محلی روشن نیست یا صفحه refresh نشده.";
+  if (result?.error === "LOCAL_TTS_ERROR") return `مدل محلی اجرا نشد: ${result.model || ""}`;
   if (result?.error === "NO_FA_VOICE") return "صدای فارسی در Firefox پیدا نشد.";
   if (result?.lang === "fa-IR") return "Firefox نتوانست متن فارسی را بخواند.";
   return "پخش صدا انجام نشد.";
+}
+
+function doneMessage(result) {
+  if (result?.engine === "local-helper") return `مدل اجرا شد: ${result.model || "local"}`;
+  return "انجام شد";
 }
 
 async function saveSettings() {

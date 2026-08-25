@@ -73,18 +73,26 @@ async function sendToActiveTab(message) {
     const result = message.type === "STOP_READING"
       ? await extensionApi.runtime.sendMessage({ type: "TTS_STOP" })
       : await extensionApi.tabs.sendMessage(tab.id, message);
-    setStatus(result?.ok === false ? readableError(result) : "انجام شد");
+    setStatus(result?.ok === false ? readableError(result) : doneMessage(result));
   } catch {
     setStatus("صفحه را یک بار refresh کنید و دوباره امتحان کنید.");
   }
 }
 
 function readableError(result) {
+  if (result?.error === "NO_TEXT") return "اول یک متن را انتخاب کنید.";
+  if (result?.error === "LOCAL_TTS_UNAVAILABLE") return "موتور محلی روشن نیست یا صفحه refresh نشده.";
+  if (result?.error === "LOCAL_TTS_ERROR") return `مدل محلی اجرا نشد: ${result.model || ""}`;
   if (result?.lang === "fa-IR") {
     return "صدای فارسی روی مرورگر/سیستم پیدا نشد.";
   }
 
   return "پخش صدا انجام نشد.";
+}
+
+function doneMessage(result) {
+  if (result?.engine === "local-helper") return `مدل اجرا شد: ${result.model || "local"}`;
+  return "انجام شد";
 }
 
 async function saveSettings() {
